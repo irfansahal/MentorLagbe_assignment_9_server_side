@@ -56,6 +56,19 @@ app.get("/tuitions/:id", async (req, res)=>{
    res.status(201).send(result)
 })
 
+app.get("/one-Tuition-by-Id/:id", async(req , res)=>{
+    const { id } = req.params;
+    const query = { _id : new ObjectId(id) };
+    const result = await tuitions.findOne(query);
+    res.status(201).send(result)
+})
+
+app.get("/brows-tuition" , async (req , res)=> {
+   const cursor = tuitions.find({})
+   const result = await cursor.toArray();
+   res.status(201).send(result)
+})
+
 app.patch("/tuition/:id", async (req, res)=>{
     const { id } = req.params;
     const updateBody = req.body
