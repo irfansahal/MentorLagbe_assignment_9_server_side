@@ -1,7 +1,7 @@
 import express from "express"
 import 'dotenv/config'
 import cors from "cors"
-import {MongoClient} from "mongodb"
+import {MongoClient, ObjectId} from "mongodb"
 
 const app = express()
 const port = process.env.port || 5000;
@@ -56,6 +56,25 @@ app.get("/tuitions/:id", async (req, res)=>{
    res.status(201).send(result)
 })
 
+app.patch("/tuition/:id", async (req, res)=>{
+    const { id } = req.params;
+    const updateBody = req.body
+    
+    const updateResult = await tuitions.updateOne(
+        { _id : new ObjectId(id)},
+        { $set : updateBody }
+    );
+    
+    res.status(201).send(updateResult)
+})
+
+app.delete("/tuition-delete/:id", async(req ,res)=> {
+     const { id } = req.params
+     const query = { _id : new ObjectId(id)};
+     const result = await tuitions.deleteOne(query);
+     res.status(201).send(result)
+})
+ 
 app.listen(port, ()=>{
     console.log(`thie server is running on port ${port}`);
     
