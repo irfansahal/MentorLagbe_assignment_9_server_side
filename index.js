@@ -34,8 +34,50 @@ const users = await MentorLagbeDB.collection("user")
 const tuitions = await MentorLagbeDB.collection("tuitions")
 const applications = await MentorLagbeDB.collection("applications")
 const payments = await MentorLagbeDB.collection("payments");
+const sessions = await MentorLagbeDB.collection("session");
 
-app.get("/", (req, res)=>{
+
+const verifyToken = async (req, res, next) => {
+  
+  const auhtHeader = req.headers.authorization;
+  
+  if(!auhtHeader){
+      res.status(401).send({massage : "Unauthorized" })
+      return
+    }
+ 
+  const token = auhtHeader.split(" ")[1]
+
+     if(!token){
+      res.status(401).send({ message : "Unauthorized"})
+      return
+     }
+
+    const query = { token }
+
+    const session = await sessions.findOne(query);
+
+    if(!session){
+        res.status(401).send({ meassage : "Unauthorized"})
+        return 
+    }
+
+    const userId = session.userId
+
+    const userQuery = { _id : new ObjectId(userId) }
+    
+    const user = await users.findOne(userQuery)
+    
+    if(!user){
+        res.status(401).send({ message : "Unauthorized" })
+    }
+
+  next()
+  
+}
+
+
+app.get("/",(req, res)=>{
    res.send(`The serer is running successfully on port ${port}`)
 })
 // 
@@ -46,7 +88,7 @@ app.get("/all-user", async (req, res)=>{
     res.send({result})
 })
 
-app.patch("/updating-a-user/:userId", async(req ,res)=>{
+app.patch("/updating-a-user/:userId",verifyToken, async(req ,res)=>{
     const { userId } = req.params;
     const query = { _id : new ObjectId(userId) }
     const updateDoc = req.body;
@@ -70,7 +112,7 @@ app.get("/user/:id/subscription" , async (req, res)=>{
 })
 
 // tuitions
-app.post("/create-tuitions", async (req ,res)=>{
+app.post("/create-tuitions", verifyToken,async (req ,res)=>{
    const body = req.body;
    const result = await tuitions.insertOne(body);
    res.status(200).send({message : "you created a tuition successfully", result})
@@ -126,7 +168,7 @@ app.get("/brows-tuition" , async (req , res)=> {
    res.status(201).send(result)
 })
 
-app.patch("/tuition/:id", async (req, res)=>{
+app.patch("/tuition/:id", verifyToken ,async (req, res)=>{
     const { id } = req.params;
     const updateBody = req.body
     
@@ -147,7 +189,7 @@ app.delete("/tuition-delete/:id", async(req ,res)=> {
  
 // application 
 
-app.post("/create-application", async (req, res)=>{
+app.post("/create-application", verifyToken ,async (req, res)=>{
    const body = req.body;
    
    const existingCurrentapplication = await applications.findOne(
@@ -291,7 +333,7 @@ app.get("/get-payments", async (req , res)=>{
             "totalTuitions" : totalTuitions, 
             "acceptedApplication" : acceptedApplication ,
             "pendingApplications" : pendingApplications,
-            "Current Plan"  : isUserPro ? "Pro" : "Free",
+            "currentPlan"  : isUserPro ? "Pro" : "Free",
         })
     })
 
@@ -320,7 +362,7 @@ app.get("/tutor-overvew/:userId" , async (req, res)=>{
              "totalTuitions" : totalTuitions ,
               "TotalApplicantsReceived" :totalApplicantsReceived,
               "TotalApprovedTuitions" : approvedTuitions,
-              "Current Plan" : isUserPro ? "Pro": "Free"
+              "currentPlan" : isUserPro ? "Pro": "Free"
             })
 })
 
