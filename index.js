@@ -27,21 +27,37 @@ export const ConnectToMongoDB = async () => {
 }
 
 const connectedClient = await ConnectToMongoDB();
-
 const MentorLagbeDB = await connectedClient.db("MentorLagbeDB");
 
+
 const users = await MentorLagbeDB.collection("user")
-
 const tuitions = await MentorLagbeDB.collection("tuitions")
-
 const applications = await MentorLagbeDB.collection("applications")
-
 const payments = await MentorLagbeDB.collection("payments");
 
 app.get("/", (req, res)=>{
    res.send(`The serer is running successfully on port ${port}`)
 })
 // 
+
+app.get("/all-user", async (req, res)=>{
+    const cursor = users.find();
+    const result = await cursor.toArray();
+    res.send({result})
+})
+
+app.patch("/updating-a-user/:userId", async(req ,res)=>{
+    const { userId } = req.params;
+    const query = { _id : new ObjectId(userId) }
+    const updateDoc = req.body;
+
+    const updateResult = await users.updateOne(
+        query,
+        { $set : updateDoc }
+    );
+
+    res.send(updateResult)
+})
 
 app.get("/user/:id/subscription" , async (req, res)=>{
    const { id } = req.params;
@@ -159,6 +175,31 @@ app.get("/myApplications/:id", async (req, res) =>{
     res.status(200).send(result) 
 })
 
+// applications-for-current-user's tuition 
+
+app.get("/applicatios-of-current-user-tuition/:id", async( req, res )=>{
+    const { id } = req.params;
+    const query = { tuitorId : id };
+    const cursor = applications.find(query);
+    const result = await cursor.toArray();
+    console.log(result);
+    
+    res.status(201).send(result)
+})
+
+// handling Accepted' or 'Rejected application 
+
+app.patch("/updating-application-status/:id", async(req, res)=>{
+    const { id } = req.params;
+    const query = { _id : new ObjectId(id)}
+    const update = req.body;
+    const result = await applications.updateOne(
+        query,
+        { $set : update }
+    )
+    res.send(result)
+})
+
 // payments 
 
 app.post("/payments/checkout-verify", async (req, res)=>{
@@ -173,7 +214,8 @@ app.post("/payments/checkout-verify", async (req, res)=>{
     metadata ,
     customer_email ,
     payment_intent,
-    payment_status
+    payment_status,
+    amount_total
      } = await stripe.checkout.sessions.retrieve(session_id)
        
 
@@ -190,7 +232,10 @@ app.post("/payments/checkout-verify", async (req, res)=>{
         session_id,
         status,
         payment_status,
+        amount_total,
         userId : metadata.userId,
+        userName : metadata.userName,
+        userRole : metadata.userRole,
         customer_email,
         payment_intent,
         payment_date : new Date(),
@@ -215,6 +260,99 @@ app.post("/payments/checkout-verify", async (req, res)=>{
      }
      res.send({ success: false, message: 'Payment verification failed'})
        })
+ 
+app.get("/get-payments", async (req , res)=>{
+     const cursor = payments.find({});
+     const result = await cursor.toArray();
+     res.send(result)
+})
+
+
+    // overveiw routes endpoint ------------------------------------
+     
+    // for student
+    app.get("/studnet-overvew/:userId", async (req, res)=>{
+        
+        const { userId } = req.params
+          
+        const totalTuitions = await tuitions.countDocuments();
+        const acceptedApplication = await applications.countDocuments({ 
+            status :  "approved" || "accepted"
+        });
+        const pendingApplications = await applications.countDocuments({
+            status : "pending"
+        })
+        
+        const isUserPro = await payments.findOne({
+            userId : userId
+        })
+
+         res.send({ 
+            "totalTuitions" : totalTuitions, 
+            "acceptedApplication" : acceptedApplication ,
+            "pendingApplications" : pendingApplications,
+            "Current Plan"  : isUserPro ? "Pro" : "Free",
+        })
+    })
+
+// for tutor 
+// approved rejected
+
+app.get("/tutor-overvew/:userId" , async (req, res)=>{
+    const { userId } = req.params 
+    
+    const totalTuitions = await tuitions.countDocuments();
+        
+        const approvedTuitions = await tuitions.countDocuments({
+           approvalStatus : "approved"
+        })
+
+        const totalApplicantsReceived = await tuitions.countDocuments({
+            tutorId : userId
+        });
+
+         const isUserPro = await payments.findOne({
+            userId : userId
+        })
+
+
+        res.send({
+             "totalTuitions" : totalTuitions ,
+              "TotalApplicantsReceived" :totalApplicantsReceived,
+              "TotalApprovedTuitions" : approvedTuitions,
+              "Current Plan" : isUserPro ? "Pro": "Free"
+            })
+})
+
+// for admin 
+// (Total Users, Total Tutors, Pending vs. Approved Tuitions, Total Stripe Revenue)
+
+app.get("/admin-overview", async (req , res)=>{
+       const totalUsers = await users.countDocuments({})
+       const totalTutor = await users.countDocuments({
+         role : "tutor"
+       });
+       const pendingTuitions = await tuitions.countDocuments({
+          approvalStatus : "pending"
+       });
+       const approvedTuitions = await tuitions.countDocuments({
+          approvalStatus : "approved"
+       });
+
+        const pendingVsApprov = `Panding ${pendingTuitions} and Approved ${approvedTuitions}`
+
+        const totalStripeRevenue = await payments.find({}).project({ amount_total : 1 , _id : 0 }).toArray()
+     
+        const totalRev = totalStripeRevenue.reduce((pre, item)=>{
+           return pre+Number(item.amount_total || 0)
+       },0)
+        res.send({
+             totalRev,
+            "totalUsers" : totalUsers,
+            "totalTutor" : totalTutor,
+            "pendingTuitionsVsApprovedTuitions" : pendingVsApprov,
+        });
+}) 
 
 app.listen(port, ()=>{
     console.log(`thie server is running on port ${port}`);
