@@ -71,7 +71,8 @@ const verifyToken = async (req, res, next) => {
     if(!user){
         res.status(401).send({ message : "Unauthorized" })
     }
-
+  
+    req.user = user
   next()
   
 }
@@ -104,10 +105,8 @@ app.patch("/updating-a-user/:userId",verifyToken, async(req ,res)=>{
 app.get("/user/:id/subscription" , async (req, res)=>{
    const { id } = req.params;
    const query = { _id : new ObjectId(id)};
-    const result = await users.findOne(query);
+    const result = await users.findOne(query, {projection : { subscription : 1}});
 
-   console.log(result);
-   
    res.send(result)
 })
 
@@ -122,6 +121,13 @@ app.get("/tuitions", async (req, res)=>{
    const cursor =  tuitions.find()
    const result = await cursor.toArray();
    res.status(201).send(result)
+})
+
+app.get("/six-tuitions", async(req , res)=>{
+     const result = await tuitions.find({})
+     .sort({createdAt:-1})
+     .limit(6).toArray();
+     res.send(result)
 })
 
 app.get("/tuitions/:id", async (req, res)=>{
@@ -217,6 +223,29 @@ app.get("/myApplications/:id", async (req, res) =>{
     res.status(200).send(result) 
 })
 
+// cancling an aplication 
+
+app.delete("/canlcle-application/:applicationId", async(req , res )=>{
+      const { applicationId } = req.params;
+    //   const isApplicationPeding = await applications.find({
+    //     status : "pending"
+    //   });
+    //   if(!isApplicationPeding){
+    //     return res.status(409).send({ message : "Application accepted , so you cannot canlce"})
+    //   } 
+      
+      const query = { _id : new ObjectId(applicationId) }
+
+      const deleteResult = await applications.deleteOne(
+          {
+            ...query,
+            status : "pending"
+          }
+      )
+
+      res.status(201).send(deleteResult)
+})
+
 // applications-for-current-user's tuition 
 
 app.get("/applicatios-of-current-user-tuition/:id", async( req, res )=>{
@@ -274,7 +303,7 @@ app.post("/payments/checkout-verify", async (req, res)=>{
         session_id,
         status,
         payment_status,
-        amount_total,
+        amount_total : amount_total / 100,
         userId : metadata.userId,
         userName : metadata.userName,
         userRole : metadata.userRole,
