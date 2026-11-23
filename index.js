@@ -124,7 +124,9 @@ app.get("/tuitions", async (req, res)=>{
 })
 
 app.get("/six-tuitions", async(req , res)=>{
-     const result = await tuitions.find({})
+     const result = await tuitions.find({
+        isActive : true 
+     })
      .sort({createdAt:-1})
      .limit(6).toArray();
      res.send(result)
@@ -345,13 +347,18 @@ app.get("/get-payments", async (req , res)=>{
     app.get("/studnet-overvew/:userId", async (req, res)=>{
         
         const { userId } = req.params
-          
-        const totalTuitions = await tuitions.countDocuments();
+        //   Total applications submitted by the current student.
+
+        const TotalApplicationsSubmittedByTheCurrentStudent = await applications.countDocuments(
+            { studentId : userId }
+        );
         const acceptedApplication = await applications.countDocuments({ 
-            status :  "approved" || "accepted"
+            status :  "approved" || "accepted",
+            studentId : userId
         });
         const pendingApplications = await applications.countDocuments({
-            status : "pending"
+            status : "pending",
+            studentId : userId
         })
         
         const isUserPro = await payments.findOne({
@@ -359,7 +366,7 @@ app.get("/get-payments", async (req , res)=>{
         })
 
          res.send({ 
-            "totalTuitions" : totalTuitions, 
+            "totalTuitions" : TotalApplicationsSubmittedByTheCurrentStudent, 
             "acceptedApplication" : acceptedApplication ,
             "pendingApplications" : pendingApplications,
             "currentPlan"  : isUserPro ? "Pro" : "Free",
@@ -371,11 +378,13 @@ app.get("/get-payments", async (req , res)=>{
 
 app.get("/tutor-overvew/:userId" , async (req, res)=>{
     const { userId } = req.params 
-    
-    const totalTuitions = await tuitions.countDocuments();
+    const TotalTuitionCreatedByTheCurrentTutor = await tuitions.countDocuments({
+         tutorId : userId
+    });
         
         const approvedTuitions = await tuitions.countDocuments({
-           approvalStatus : "approved"
+           approvalStatus : "approved",
+           tutorId : userId
         })
 
         const totalApplicantsReceived = await tuitions.countDocuments({
@@ -388,9 +397,9 @@ app.get("/tutor-overvew/:userId" , async (req, res)=>{
 
 
         res.send({
-             "totalTuitions" : totalTuitions ,
+             "totalTuitions" : TotalTuitionCreatedByTheCurrentTutor ,
+             "TotalApprovedTuitions" : approvedTuitions,
               "TotalApplicantsReceived" :totalApplicantsReceived,
-              "TotalApprovedTuitions" : approvedTuitions,
               "currentPlan" : isUserPro ? "Pro": "Free"
             })
 })
@@ -430,3 +439,4 @@ app.listen(port, ()=>{
     
 })
 
+export default app;
